@@ -1,0 +1,77 @@
+defaults:
+  - model/pi0_5@actor.model
+  - training_backend/fsdp@actor.fsdp_config
+  - override hydra/job_logging: stdout
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  searchpath:
+    - file://${oc.env:EMBODIED_PATH}/config/
+
+cluster:
+  num_nodes: 1
+  component_placement:
+    actor,env,rollout: 0-3 # adjust to the GPU ids available on the training node
+
+runner:
+  task_type: sft
+  logger:
+    log_path: "../results"
+    project_name: rlinf
+    experiment_name: "galbot_g1_sft_openpi_pi05"
+    logger_backends: ["tensorboard"]
+
+  max_epochs: -1
+  max_steps: 3000
+  val_check_interval: -1
+  save_interval: 250
+
+data:
+  train_data_paths: "/path/to/lerobot_data/galbot_g1_cola_basket" # the dataset dir itself (contains meta/ and data/)
+
+actor:
+  group_name: "ActorGroup"
+  training_backend: "fsdp"
+  # micro=2 fits pi05 full-finetune on 24GB cards (with
+  # PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True); micro=4 OOMs.
+  micro_batch_size: 2
+  global_batch_size: 32
+  seed: 0
+
+  model:
+    precision: null
+    model_path: "/path/to/pi05_base_pytorch"
+    num_action_chunks: 10
+    action_dim: 8
+    add_value_head: False
+    openpi:
+      config_name: "pi05_galbot_g1"
+      detach_critic_input: True
+      num_images_in_input: 2
+      # False switches the FSDP wrap layout to the full-finetune one; the
+      # expert-only layout (GemmaDecoderLayer units) breaks under full_shard
+      # because pi05's SFT forward accesses layer submodules directly.
+      train_expert_only: False
+
+  optim:
+    lr: 2.5e-5
+    adam_beta1: 0.9
+    adam_beta2: 0.95
+    adam_eps: 1.0e-08
+    weight_decay: 1.0e-10
+    clip_grad: 1.0
+    warmup_style: "cosine"
+    lr_warmup_steps: 200
+    total_training_steps: 3000
+
+  fsdp_config:
+    strategy: "fsdp"
+    sharding_strategy: "full_shard"
+    use_orig_params: False
+    gradient_checkpointing: False # not supported by openpi; do not change
+    mixed_precision:
+      param_dtype: ${actor.model.precision}
+      reduce_dtype: ${actor.model.precision}
+      buffer_dtype: ${actor.model.precision}

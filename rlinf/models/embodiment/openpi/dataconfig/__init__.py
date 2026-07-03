@@ -41,6 +41,9 @@ from rlinf.models.embodiment.openpi.dataconfig.franka_co_training_dataconfig imp
 from rlinf.models.embodiment.openpi.dataconfig.franka_dataconfig import (
     CustomDataConfig,
 )
+from rlinf.models.embodiment.openpi.dataconfig.galbot_g1_dataconfig import (
+    LeRobotGalbotG1DataConfig,
+)
 from rlinf.models.embodiment.openpi.dataconfig.gsenv_dataconfig import (
     LeRobotGSEnvDataConfig,
 )
@@ -362,6 +365,18 @@ _CONFIGS = [
         ),
         pytorch_weight_path="checkpoints/torch/pi05_base",
         num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="pi05_galbot_g1",
+        model=pi0_config.Pi0Config(
+            pi05=True, action_horizon=10, discrete_state_input=False
+        ),
+        data=LeRobotGalbotG1DataConfig(
+            repo_id="galbot_g1_cola_basket",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig(assets_dir="checkpoints/torch/pi05_base/assets"),
+        ),
+        pytorch_weight_path="checkpoints/torch/pi05_base",
     ),
     TrainConfig(
         name="pi0_realworld",
